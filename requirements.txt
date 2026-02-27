@@ -1,0 +1,6 @@
+fastapi==0.110.0
+uvicorn==0.27.1
+python-multipart==0.0.9
+pymupdf
+python-pptx==0.6.23
+langchain-text-splitters==0.0.1

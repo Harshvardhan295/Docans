@@ -3,7 +3,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 import uvicorn
 import uuid
-
+from fastapi.middleware.cors import CORSMiddleware # <-- Add this import
 from utils.document_processor import process_file
 from utils.summarizer import generate_document_summary
 from utils.vector_store import store_chunks_in_db, retrieve_relevant_chunks
@@ -11,6 +11,15 @@ from utils.qa_model import answer_question
 from utils.db_manager import save_chat_interaction, fetch_chat_history
 
 app = FastAPI(title="Docans API")
+
+# --- ADD THIS CORS BLOCK ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins (e.g., localhost:5173 for Vite)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (POST, GET, OPTIONS, etc.)
+    allow_headers=["*"],
+)
 
 class ChatRequest(BaseModel):
     session_id: str  # Added session_id so we know who is talking

@@ -5,10 +5,10 @@ from pptx import Presentation
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
-# 1000 chunk size and 200 overlap is an industry-standard starting point for RAG
+# 1500 chunk size and 100 overlap is an industry-standard starting point for RAG
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=200,
+    chunk_size=1500,
+    chunk_overlap=100,
     length_function=len,
     is_separator_regex=False,
 )

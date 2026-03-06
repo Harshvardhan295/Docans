@@ -66,7 +66,6 @@ const DocansUpload = () => {
     formData.append("file", f);
 
     try {
-      // Transition UI to processing
       setTimeout(() => setState("processing"), 1500);
 
       // 2. Call the FastAPI Backend

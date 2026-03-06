@@ -50,7 +50,6 @@ async def generate_document_summary(chunks: list[str]) -> str:
     if len(chunks) == 1:
         return summarize_text(chunks[0])
 
-    # --- MAP PHASE ---
     chunk_summaries = []
     for i, chunk in enumerate(chunks):
         print(f"Summarizing chunk {i + 1} of {len(chunks)}...")

@@ -12,12 +12,11 @@ from utils.db_manager import save_chat_interaction, fetch_chat_history
 
 app = FastAPI(title="Docans API")
 
-# --- ADD THIS CORS BLOCK ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins (e.g., localhost:5173 for Vite)
+    allow_origins=["*"],  
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (POST, GET, OPTIONS, etc.)
+    allow_methods=["*"], 
     allow_headers=["*"],
 )
 

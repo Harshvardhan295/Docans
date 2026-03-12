@@ -15,23 +15,7 @@ interface UploadedFile {
 
 type UploadState = "idle" | "uploading" | "processing" | "summarizing" | "done" | "error";
 
-const MOCK_SUMMARY = `## Key Findings
 
-This document presents a comprehensive analysis of cloud infrastructure security across enterprise environments. The main points include:
-
-1. **Multi-cloud adoption** has increased by 78% year-over-year, creating new attack surface challenges for security teams.
-
-2. **Identity-based attacks** remain the #1 threat vector, with 63% of breaches originating from compromised credentials or misconfigured IAM policies.
-
-3. **Automated remediation** reduces mean-time-to-response by 94%, compared to manual incident handling workflows.
-
-4. **Container security** maturity varies significantly — only 23% of organizations have runtime protection for containerized workloads.
-
-### Recommendations
-- Implement least-privilege access across all cloud accounts
-- Deploy agentless scanning for full-stack visibility
-- Establish automated guardrails for IaC pipelines
-- Conduct quarterly red team exercises targeting cloud infrastructure`;
 
 const DocansUpload = () => {
   const [dragActive, setDragActive] = useState(false);
@@ -395,24 +379,9 @@ const DocansUpload = () => {
                               <SkeletonLoader className="h-4 w-4/6" />
                             </div>
                           ) : (
-                            <div className="prose prose-sm max-w-none text-foreground/90">
-                              {summary.split("\n").map((line, i) => {
-                                if (line.startsWith("## ")) return <h4 key={i} className="font-display text-base font-bold text-foreground mt-4 mb-2">{line.slice(3)}</h4>;
-                                if (line.startsWith("### ")) return <h5 key={i} className="font-display text-sm font-bold text-foreground mt-3 mb-1">{line.slice(4)}</h5>;
-                                if (line.startsWith("- ")) return <li key={i} className="text-sm text-muted-foreground ml-4">{line.slice(2)}</li>;
-                                if (line.match(/^\d+\./)) {
-                                  const content = line.replace(/^\d+\.\s*/, "");
-                                  const parts = content.split(/\*\*(.*?)\*\*/);
-                                  return (
-                                    <p key={i} className="text-sm text-muted-foreground mt-2">
-                                      {parts.map((part, j) => j % 2 === 1 ? <strong key={j} className="text-foreground font-semibold">{part}</strong> : part)}
-                                    </p>
-                                  );
-                                }
-                                if (line.trim() === "") return <div key={i} className="h-2" />;
-                                return <p key={i} className="text-sm text-muted-foreground">{line}</p>;
-                              })}
-                              {state === "summarizing" && <span className="inline-block w-2 h-4 bg-primary/60 animate-pulse ml-0.5" />}
+                            <div className="prose prose-sm max-w-none text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                              {summary}
+                              {state === "summarizing" && <span className="inline-block w-2 h-4 bg-primary/60 animate-pulse ml-0.5 align-middle" />}
                             </div>
                           )}
                         </div>

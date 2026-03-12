@@ -1,6 +1,7 @@
+// frontend/src/components/docans/DocansChat.tsx
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Bot, User, Shield, Loader2, Trash2, MessageSquare, Sparkles } from "lucide-react";
+import { Send, Bot, User, Shield, Trash2, MessageSquare, Sparkles } from "lucide-react";
 import TextReveal from "../wiz/animations/TextReveal";
 
 interface Message {
@@ -10,14 +11,8 @@ interface Message {
   timestamp: Date;
 }
 
-const MOCK_ANSWERS: Record<string, { type: "answer" | "guardrail"; content: string }> = {
-  default: {
-    type: "answer",
-    content: "Based on the uploaded document, the key findings indicate a 78% year-over-year increase in multi-cloud adoption, with identity-based attacks remaining the primary threat vector at 63% of breaches. The document recommends implementing least-privilege access and agentless scanning for improved visibility.",
-  },
-};
-
-const GUARDRAIL_QUERIES = ["weather", "recipe", "joke", "stock", "sports", "movie", "music", "game"];
+// Generate a random session ID for the current user's chat session
+const SESSION_ID = Math.random().toString(36).substring(2, 15);
 
 const DocansChat = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -37,18 +32,14 @@ const DocansChat = () => {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  const isOutOfScope = (query: string) => {
-    const lower = query.toLowerCase();
-    return GUARDRAIL_QUERIES.some((q) => lower.includes(q)) || (!lower.includes("document") && !lower.includes("finding") && !lower.includes("chapter") && !lower.includes("recommend") && !lower.includes("security") && !lower.includes("cloud") && !lower.includes("attack") && !lower.includes("summary") && !lower.includes("main") && !lower.includes("key") && lower.length < 20);
-  };
-
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim() || isTyping) return;
 
+    const userQuery = input.trim();
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: userQuery,
       timestamp: new Date(),
     };
 
@@ -56,26 +47,49 @@ const DocansChat = () => {
     setInput("");
     setIsTyping(true);
 
-    const outOfScope = isOutOfScope(input);
+    try {
+      // Call the FastAPI backend
+      const response = await fetch("http://localhost:8000/chat/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          session_id: SESSION_ID,
+          query: userQuery,
+        }),
+      });
 
-    setTimeout(() => {
-      const response: Message = outOfScope
-        ? {
-            id: (Date.now() + 1).toString(),
-            role: "guardrail",
-            content: `⚠️ This question appears to be outside the scope of the uploaded document. I can only answer questions related to the content in your uploaded file. Please ask something about the document's topics, findings, or recommendations.`,
-            timestamp: new Date(),
-          }
-        : {
-            id: (Date.now() + 1).toString(),
-            role: "assistant",
-            content: MOCK_ANSWERS.default.content,
-            timestamp: new Date(),
-          };
+      if (!response.ok) {
+        throw new Error("Failed to get response from server");
+      }
 
-      setMessages((prev) => [...prev, response]);
+      const data = await response.json();
+      const answerText = data.answer;
+
+      // Check if the backend guardrail was triggered based on your qa_model.py fallback string
+      const isGuardrail = answerText.includes("not present in the uploaded document");
+
+      const botMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: isGuardrail ? "guardrail" : "assistant",
+        content: answerText,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, botMsg]);
+    } catch (error) {
+      console.error("Chat error:", error);
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "guardrail",
+        content: "⚠️ An error occurred while communicating with the server. Please ensure the backend is running.",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
       setIsTyping(false);
-    }, 1200 + Math.random() * 800);
+    }
   };
 
   const clearChat = () => {
@@ -198,7 +212,7 @@ const DocansChat = () => {
                     )}
                   </motion.div>
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+                    className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm whitespace-pre-wrap ${
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground rounded-br-md"
                         : msg.role === "guardrail"
@@ -262,7 +276,7 @@ const DocansChat = () => {
               </motion.button>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              {["What are the key findings?", "Summarize chapter 3", "List all recommendations"].map((q) => (
+              {["What is the main topic?", "List the key recommendations", "Provide a brief overview"].map((q) => (
                 <motion.button
                   key={q}
                   onClick={() => { setInput(q); inputRef.current?.focus(); }}
@@ -275,22 +289,6 @@ const DocansChat = () => {
               ))}
             </div>
           </div>
-        </motion.div>
-
-        {/* Saved chats note */}
-        <motion.div
-          className="mt-8 rounded-2xl border border-border/50 bg-card/50 backdrop-blur p-5 text-center"
-          initial={{ opacity: 0, y: 10 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-        >
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-semibold text-foreground">Persistent Sessions</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            All conversations are saved to Supabase. Continue your Q&A session anytime — even days later.
-          </p>
         </motion.div>
       </div>
     </section>

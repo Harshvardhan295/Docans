@@ -3,6 +3,8 @@
 .env.local
 .env.*.local
 
+chroma_db/
+
 # Dependencies
 node_modules/
 package-lock.json
@@ -55,3 +57,5 @@ coverage/
 # Output
 out/
 output/
+
+_pycache_/

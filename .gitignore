@@ -23,4 +23,12 @@ dist-ssr
 *.sln
 *.sw?
 
-hf_cache
+# Python
+**/__pycache__/
+
+# Data / cache directories
+**/chroma_db/
+**/hf_cache/
+
+# Virtual environments
+backend/venv/

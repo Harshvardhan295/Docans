@@ -1,4 +1,8 @@
 # main.py
+import os
+# Force Hugging Face to use the H: drive for downloading massive models
+os.environ["HF_HOME"] = "H:/Docans/hf_cache"
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 import uvicorn
@@ -34,7 +38,7 @@ async def upload_document(file: UploadFile = File(...)):
         chunks = processed_data["chunks"]
         
         await store_chunks_in_db(file.filename, chunks)
-        master_summary = await generate_document_summary(chunks)
+        master_summary = await generate_document_summary(chunks, file_name=file.filename)
         
         return {
             "message": "File processed, stored in database, and summarized successfully.",

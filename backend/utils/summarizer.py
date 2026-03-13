@@ -1,108 +1,81 @@
 # utils/summarizer.py
-import torch
-from transformers import pipeline, BitsAndBytesConfig
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-print("Loading Instruction-Tuned Summarization Model (Mistral-7B-Instruct-v0.2)...")
-model_name = "mistralai/Mistral-7B-Instruct-v0.2"
+print("Loading Summarization Model (Flan-T5-Base)...")
+model_name = "google/flan-t5-base"
 
-pipe = None # Define pipe globally first to prevent ReferenceErrors
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+print("Summarization Model loaded successfully!")
 
-try:
-    # OPTIONAL BUT RECOMMENDED: Load in 4-bit to save VRAM (requires `pip install bitsandbytes`)
-    # If you have a 16GB+ GPU, you can remove the model_kwargs line.
-    quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.float16,
-    )
 
-    pipe = pipeline(
-        "text-generation",
-        model=model_name,
-        device_map="auto", # Requires 'accelerate'
-        model_kwargs={"quantization_config": quantization_config} # Comment out if not using bitsandbytes
-    )
-    print("Mistral Model loaded successfully!")
-except Exception as e:
-    print(f"Failed to load Mistral model: {e}")
-
-def generate_with_mistral(instruction: str, max_new_tokens: int = 500) -> str:
-    """Helper function to format prompts and generate text using Mistral."""
-    if pipe is None:
-        return "Error: Summarization model failed to load during startup."
-        
-    messages = [
-        {"role": "user", "content": instruction},
-    ]
+def summarize_text(text: str, max_input_length: int = 512, max_new_tokens: int = 150) -> str:
+    """Summarize a single piece of text using Flan-T5."""
+    prompt = f"Summarize the following text in detail:\n\n{text}"
     
-    try:
-        # Apply Mistral's specific [INST] chat template
-        prompt = pipe.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        
-        outputs = pipe(
-            prompt,
-            max_new_tokens=max_new_tokens,
-            do_sample=True,
-            temperature=0.3, 
-            top_p=0.9,
-        )
-        # Return only the generated text (stripping the input prompt)
-        return outputs[0]["generated_text"][len(prompt):].strip()
-    except Exception as e:
-        print(f"Error during generation: {e}")
-        return "Error generating summary."
+    inputs = tokenizer(prompt, return_tensors="pt", max_length=max_input_length, truncation=True)
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=max_new_tokens,
+        num_beams=4,
+        early_stopping=True,
+        do_sample=False,
+    )
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-def summarize_chunk(text: str) -> str:
-    instruction = f"You are a highly efficient assistant. Extract the core concepts and topics from the provided text.\n\nText to analyze:\n{text}\n\nProvide the main points."
-    return generate_with_mistral(instruction, max_new_tokens=250)
 
 async def generate_document_summary(chunks: list[str], file_name: str = "Uploaded Document") -> str:
+    """
+    Generate a structured document summary using Map-Reduce:
+    1. MAP: Summarize each chunk individually (fits within 512-token limit)
+    2. REDUCE: Combine chunk summaries into a final structured summary
+    """
     if not chunks:
         return "No content to summarize."
-    if pipe is None:
-        return "Cannot generate summary because the model failed to load."
-    
-    combined_text = "\n".join(chunks)
-    
-    if len(combined_text) < 25000:
-        print("Document fits in context window. Generating structured summary directly...")
-        
-        instruction = f"""You are an expert technical summarizer that follows strict formatting rules. Read the following document text and provide a structured summary. You must follow this exact format:
-        
-Explain what the file is about in one or two sentences.
-{file_name}
-The document includes topics such as:
-- [Topic 1]
-- [Topic 2]
-- [Topic 3]...
-Overall, [provide a brief overall conclusion].
 
-Document Text:
-{combined_text}"""
-        
-        return generate_with_mistral(instruction, max_new_tokens=600)
+    print(f"Summarizing {len(chunks)} chunks using Map-Reduce strategy...")
 
-    # --- MAP PHASE (For very large documents) ---
+    # --- MAP PHASE: Summarize each chunk individually ---
     chunk_summaries = []
     for i, chunk in enumerate(chunks):
-        print(f"Summarizing chunk {i + 1} of {len(chunks)}...")
-        chunk_summary = summarize_chunk(chunk)
-        chunk_summaries.append(chunk_summary)
+        print(f"  Summarizing chunk {i + 1}/{len(chunks)}...")
+        try:
+            summary = summarize_text(chunk, max_input_length=512, max_new_tokens=120)
+            if summary.strip():
+                chunk_summaries.append(summary)
+        except Exception as e:
+            print(f"  Warning: Failed to summarize chunk {i + 1}: {e}")
+            continue
 
-    # --- REDUCE PHASE ---
-    print("Starting Reduce phase (generating final structured summary)...")
-    combined_summaries = "\n\n".join(f"--- Section {i+1} Summary ---\n{s}" for i, s in enumerate(chunk_summaries))
-    
-    instruction = f"""You are an expert technical summarizer that follows strict formatting rules. Based on the following summaries of document sections, provide a structured overall summary. You must follow this exact format:
-    
-Explain what the file is about in one or two sentences.
-{file_name}
-The document includes topics such as:
-- [Topic 1]
-- [Topic 2]
-- [Topic 3]...
-Overall, [provide a brief overall conclusion].
+    if not chunk_summaries:
+        return "Failed to generate summary from the document."
 
-Section Summaries:
-{combined_summaries}"""
+    # --- REDUCE PHASE: Combine chunk summaries into a final summary ---
+    print("Generating final structured summary...")
     
-    return generate_with_mistral(instruction, max_new_tokens=600)
+    # Combine all chunk summaries into one text, staying within token limits
+    combined = " ".join(chunk_summaries)
+    
+    reduce_prompt = (
+        f"Based on the following summaries of sections from a document called \"{file_name}\", "
+        f"write a comprehensive overall summary that explains what the document is about "
+        f"and lists its main topics:\n\n{combined}"
+    )
+
+    try:
+        final_summary = summarize_text(reduce_prompt, max_input_length=512, max_new_tokens=200)
+    except Exception as e:
+        print(f"Reduce phase failed: {e}")
+        # Fallback: just return the combined chunk summaries
+        final_summary = " ".join(chunk_summaries[:3])
+
+    # Build the structured output
+    structured = f"**{file_name}**\n\n{final_summary}"
+    
+    # Add individual section highlights if we have enough chunks
+    if len(chunk_summaries) > 1:
+        structured += "\n\n**Key sections covered:**"
+        for i, s in enumerate(chunk_summaries[:5]):  # Show up to 5 section summaries
+            structured += f"\n- {s}"
+
+    return structured

@@ -8,43 +8,49 @@ tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 print("QA Model loaded successfully!")
 
+# The guardrail fallback message
+GUARDRAIL_RESPONSE = "I'm sorry, but this information is not present in the uploaded document."
+
 async def answer_question(query: str, retrieved_chunks: list[str]) -> str:
     """
-    Takes the user query and the retrieved context chunks, 
+    Takes the user query and the retrieved context chunks,
     applies strict guardrails, and generates an answer.
     """
     if not retrieved_chunks:
-        return "I'm sorry, but this information is not present in the uploaded document."
+        return GUARDRAIL_RESPONSE
 
-    # Combine the chunks into a single context string
-    context = " ".join(retrieved_chunks)
-    
+    # Use only the top 2 most relevant chunks to stay within the 512-token limit.
+    # Each chunk is ~800 chars, so 2 chunks ≈ 1600 chars ≈ ~400 tokens, leaving room for the prompt.
+    context = " ".join(retrieved_chunks[:2])
+
     # --- PROMPT ENGINEERING & GUARDRAILING ---
+    # Flan-T5 responds best to direct, task-oriented instructions.
+    # Put the context FIRST so truncation only clips the end of context, not the question.
     prompt = (
-        "Answer the question based ONLY on the following context. "
-        "If the answer is not contained in the context, reply exactly with: "
-        "'I'm sorry, but this information is not present in the uploaded document.'\n\n"
+        f"Answer the following question using ONLY the context provided. "
+        f"If the answer cannot be found in the context, say "
+        f"'{GUARDRAIL_RESPONSE}'\n\n"
         f"Context: {context}\n\n"
         f"Question: {query}\n\n"
-        "Answer:"
+        f"Answer:"
     )
 
     try:
-        inputs = tokenizer(prompt, return_tensors="pt", max_length=1024, truncation=True)
-        # Generate the answer
+        inputs = tokenizer(prompt, return_tensors="pt", max_length=512, truncation=True)
+
         outputs = model.generate(
-            **inputs, 
-            max_new_tokens=150, 
-            temperature=0.1, # Low temperature to prevent hallucinations
-            do_sample=False
+            **inputs,
+            max_new_tokens=150,
+            num_beams=4,
+            early_stopping=True,
+            do_sample=False,  # Greedy/beam search for factual answers
         )
         answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Sometimes small models ignore the exact negative instruction if they are confused.
-        # We can add a hardcoded fallback guardrail here just in case.
-        if answer.strip() == "":
-             return "I'm sorry, but this information is not present in the uploaded document."
-             
+
+        # Fallback guardrail: if the model returns an empty string
+        if not answer.strip():
+            return GUARDRAIL_RESPONSE
+
         return answer
     except Exception as e:
         print(f"Error generating answer: {e}")

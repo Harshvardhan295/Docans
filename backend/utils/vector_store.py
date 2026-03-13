@@ -19,6 +19,12 @@ async def store_chunks_in_db(filename: str, chunks: list[str]):
     """
     if not chunks:
         return
+        
+    # CLEAR the database before adding a new document so chat remains context-specific
+    existing_data = collection.get()
+    if existing_data and existing_data['ids']:
+        collection.delete(ids=existing_data['ids'])
+        print("Cleared previous document chunks from ChromaDB.")
     
     # Generate unique IDs for each chunk
     ids = [f"{filename}_chunk_{i}" for i in range(len(chunks))]
@@ -29,7 +35,7 @@ async def store_chunks_in_db(filename: str, chunks: list[str]):
     # Convert text chunks to numerical vectors
     embeddings = embedding_model.encode(chunks).tolist()
     
-    # Upsert into ChromaDB (adds them, or updates them if the ID already exists)
+    # Upsert into ChromaDB
     collection.upsert(
         ids=ids,
         embeddings=embeddings,
@@ -42,16 +48,13 @@ async def retrieve_relevant_chunks(query: str, n_results: int = 3) -> list[str]:
     """
     Embeds the user's query and fetches the top N most relevant chunks from the database.
     """
-    # Convert the user's question into a vector
     query_embedding = embedding_model.encode([query]).tolist()
     
-    # Search ChromaDB for the closest matching vectors
     results = collection.query(
         query_embeddings=query_embedding,
         n_results=n_results
     )
     
-    # Return the raw text documents
     if not results['documents'] or not results['documents'][0]:
         return []
         

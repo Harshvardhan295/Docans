@@ -4,11 +4,10 @@ import fitz  # PyMuPDF
 from pptx import Presentation
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-
-# 1500 chunk size and 100 overlap is an industry-standard starting point for RAG
+# Reduced to 800 to better fit smaller LLMs like Flan-T5-base without prompting limits
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1500,
-    chunk_overlap=100,
+    chunk_size=1000,
+    chunk_overlap=200,
     length_function=len,
     is_separator_regex=False,
 )

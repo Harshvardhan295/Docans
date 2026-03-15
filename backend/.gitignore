@@ -59,3 +59,5 @@ out/
 output/
 
 _pycache_/
+
+check_db.py

@@ -1,59 +1,55 @@
-# utils/document_processor.py
 import io
+import re
 import fitz  # PyMuPDF
 from pptx import Presentation
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# Reduced to 800 to better fit smaller LLMs like Flan-T5-base without prompting limits
+# 1. CPU-Friendly Chunking
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=200,
+    chunk_size=500,
+    chunk_overlap=100,
     length_function=len,
-    is_separator_regex=False,
 )
+
+def clean_text(text: str) -> str:
+    """Removes metadata that causes embeddings to hallucinate or miss context."""
+    text = re.sub(r'--- Page \d+ ---', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'--- Slide \d+ ---', '', text, flags=re.IGNORECASE)
+    # Replace multiple spaces/newlines with a single space
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
     text = ""
     with fitz.open(stream=file_bytes, filetype="pdf") as doc:
-        for page_num, page in enumerate(doc):
-            page_text = page.get_text("text")
-            if page_text.strip():
-                text += f"\n--- Page {page_num + 1} ---\n{page_text}"
+        for page in doc:
+            text += page.get_text("text") + "\n"
     return text
 
 def extract_text_from_pptx(file_bytes: bytes) -> str:
     text = ""
     presentation = Presentation(io.BytesIO(file_bytes))
-    for slide_num, slide in enumerate(presentation.slides):
-        slide_text = ""
+    for slide in presentation.slides:
         for shape in slide.shapes:
             if hasattr(shape, "text"):
-                slide_text += shape.text + "\n"
-        if slide_text.strip():
-            text += f"\n--- Slide {slide_num + 1} ---\n{slide_text}"
+                text += shape.text + "\n"
     return text
 
-def chunk_document(text: str) -> list[str]:
-    if not text.strip():
-        return []
-    chunks = text_splitter.split_text(text)
-    return chunks
-
 async def process_file(file_name: str, file_bytes: bytes) -> dict:
-    extracted_text = ""
-    
     if file_name.lower().endswith('.pdf'):
-        extracted_text = extract_text_from_pdf(file_bytes)
+        raw_text = extract_text_from_pdf(file_bytes)
     elif file_name.lower().endswith('.pptx'):
-        extracted_text = extract_text_from_pptx(file_bytes)
+        raw_text = extract_text_from_pptx(file_bytes)
     else:
-        raise ValueError("Unsupported file format. Please upload PDF or PPTX.")
+        raise ValueError("Unsupported format.")
 
-    chunks = chunk_document(extracted_text)
+    # 2. Clean and Chunk
+    cleaned_text = clean_text(raw_text)
+    chunks = text_splitter.split_text(cleaned_text)
     
     return {
         "filename": file_name,
-        "total_characters": len(extracted_text),
+        "total_characters": len(cleaned_text),
         "total_chunks": len(chunks),
         "chunks": chunks
     }

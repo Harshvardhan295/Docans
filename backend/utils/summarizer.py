@@ -1,81 +1,92 @@
-# utils/summarizer.py
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-print("Loading Summarization Model (Flan-T5-Base)...")
-model_name = "google/flan-t5-base"
+print("Loading Summarization Model (facebook/bart-large-cnn)...")
+model_name = "facebook/bart-large-cnn"
 
+# Bypass the broken pipeline abstraction by loading the model natively
 tokenizer = AutoTokenizer.from_pretrained(model_name)
+tokenizer.model_max_length = 1024
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-print("Summarization Model loaded successfully!")
 
+print("Summarizer loaded successfully!")
 
-def summarize_text(text: str, max_input_length: int = 512, max_new_tokens: int = 150) -> str:
-    """Summarize a single piece of text using Flan-T5."""
-    prompt = f"Summarize the following text in detail:\n\n{text}"
-    
-    inputs = tokenizer(prompt, return_tensors="pt", max_length=max_input_length, truncation=True)
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=max_new_tokens,
-        num_beams=4,
-        early_stopping=True,
-        do_sample=False,
-    )
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+def chunk_text_by_tokens(text: str, max_len: int = 999) -> list[str]:
+    """Chunks text strictly by token count as implemented in the reference repo."""
+    tokens = tokenizer.encode(text, add_special_tokens=False)
+    chunks = [tokens[i:i + max_len] for i in range(0, len(tokens), max_len)]
+    return [tokenizer.decode(chunk, skip_special_tokens=True) for chunk in chunks]
 
-
-async def generate_document_summary(chunks: list[str], file_name: str = "Uploaded Document") -> str:
-    """
-    Generate a structured document summary using Map-Reduce:
-    1. MAP: Summarize each chunk individually (fits within 512-token limit)
-    2. REDUCE: Combine chunk summaries into a final structured summary
-    """
+async def generate_document_summary(chunks: list[str], file_name: str = "Document") -> str:
     if not chunks:
         return "No content to summarize."
+    
+    # Combine all extracted chunks into one string for re-chunking by token count
+    output_text = " ".join(chunks)
+    max_input_length = tokenizer.model_max_length
 
-    print(f"Summarizing {len(chunks)} chunks using Map-Reduce strategy...")
+    # Check if the text exceeds the model's token limit
+    if len(tokenizer.encode(output_text, add_special_tokens=False)) > max_input_length:
+        print("The text is too long, chunking...")
+        token_chunks = chunk_text_by_tokens(output_text, max_len=999)
+        print("Text has been chunked into smaller parts for summarization.")
+    else:
+        token_chunks = [output_text]
 
-    # --- MAP PHASE: Summarize each chunk individually ---
-    chunk_summaries = []
-    for i, chunk in enumerate(chunks):
-        print(f"  Summarizing chunk {i + 1}/{len(chunks)}...")
-        try:
-            summary = summarize_text(chunk, max_input_length=512, max_new_tokens=120)
-            if summary.strip():
-                chunk_summaries.append(summary)
-        except Exception as e:
-            print(f"  Warning: Failed to summarize chunk {i + 1}: {e}")
+    summaries = []
+    
+    # Process each token chunk exactly as the reference repo does
+    for i, chunk in enumerate(token_chunks):
+        print(f"Summarizing chunk {i + 1}/{len(token_chunks)}")
+        is_last_chunk = i == len(token_chunks) - 1
+
+        # Safely re-tokenize for length tracking
+        encoded_chunk = tokenizer.encode(chunk, add_special_tokens=False)
+        token_length = len(encoded_chunk)
+
+        print(f"Chunk {i + 1} has {token_length} tokens")
+
+        # Guardrails from the reference repo
+        if not chunk.strip():
+            print(f"Chunk {i + 1} is empty, skipping.")
             continue
 
-    if not chunk_summaries:
-        return "Failed to generate summary from the document."
+        if token_length == 0:
+            print(f"Chunk {i + 1} tokenized to 0 tokens, skipping.")
+            continue
 
-    # --- REDUCE PHASE: Combine chunk summaries into a final summary ---
-    print("Generating final structured summary...")
-    
-    # Combine all chunk summaries into one text, staying within token limits
-    combined = " ".join(chunk_summaries)
-    
-    reduce_prompt = (
-        f"Based on the following summaries of sections from a document called \"{file_name}\", "
-        f"write a comprehensive overall summary that explains what the document is about "
-        f"and lists its main topics:\n\n{combined}"
+        if token_length < 10 and not is_last_chunk:
+            print(f"Chunk {i + 1} too short (<10 tokens), skipping.")
+            continue
+
+        try:
+            # NATIVE GENERATION (This replaces the broken summarizer pipeline)
+            inputs = tokenizer(
+                chunk, 
+                return_tensors="pt", 
+                max_length=1024, 
+                truncation=True
+            )
+            
+            summary_ids = model.generate(
+                inputs["input_ids"], 
+                max_length=150, 
+                min_length=40, 
+                length_penalty=2.0, 
+                num_beams=4, 
+                early_stopping=True
+            )
+            
+            summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+            summaries.append(summary)
+            
+        except Exception as e:
+            print(f"Error summarizing chunk {i + 1}: {e}")
+
+    # Stitch the individual summaries together
+    final_summary = "\n\n".join(summaries)
+
+    return (
+        f"This document ({file_name}) primarily covers the following:\n\n"
+        f"{final_summary}\n\n"
+        f"You can now ask me specific questions about the contents of this file."
     )
-
-    try:
-        final_summary = summarize_text(reduce_prompt, max_input_length=512, max_new_tokens=200)
-    except Exception as e:
-        print(f"Reduce phase failed: {e}")
-        # Fallback: just return the combined chunk summaries
-        final_summary = " ".join(chunk_summaries[:3])
-
-    # Build the structured output
-    structured = f"**{file_name}**\n\n{final_summary}"
-    
-    # Add individual section highlights if we have enough chunks
-    if len(chunk_summaries) > 1:
-        structured += "\n\n**Key sections covered:**"
-        for i, s in enumerate(chunk_summaries[:5]):  # Show up to 5 section summaries
-            structured += f"\n- {s}"
-
-    return structured

@@ -53,22 +53,24 @@ async def upload_document(file: UploadFile = File(...)):
 
 
 @app.post("/chat/")
-async def chat_with_document(request: ChatRequest):
+async def chat_endpoint(request: ChatRequest):
     try:
-        relevant_chunks = await retrieve_relevant_chunks(request.query, n_results=3)
+        # 1. Retrieve chunks from Qdrant
+        relevant_chunks = await retrieve_relevant_chunks(request.query)
+        # 2. Generate answer with Flan-T5
         answer = await answer_question(request.query, relevant_chunks)
+        # 3. Safely attempt to save to Supabase
+        try:
+            from utils.db_manager import save_chat_interaction
+            await save_chat_interaction(request.session_id, request.query, answer)
+        except Exception as db_error:
+            print(f"Skipping database save (DB might not be configured): {db_error}")
+            
+        return {"answer": answer}
         
-        # Save the interaction to Supabase asynchronously
-        await save_chat_interaction(request.session_id, request.query, answer)
-        
-        return {
-            "session_id": request.session_id,
-            "query": request.query,
-            "answer": answer
-        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
-
+        print(f"CRITICAL ERROR in /chat/: {e}")
+        return {"answer": "I'm sorry, an internal server error occurred while processing your request."}
 
 @app.get("/history/{session_id}")
 async def get_history(session_id: str):

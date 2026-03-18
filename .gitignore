@@ -32,3 +32,4 @@ dist-ssr
 
 # Virtual environments
 backend/venv/
+docans-cluster_api_key.txt

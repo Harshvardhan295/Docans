@@ -20,7 +20,7 @@ async def answer_question(query: str, retrieved_chunks: list[str]) -> str:
 
     # Max length bounded to prevent CPU memory overflow
     inputs = tokenizer(prompt, return_tensors="pt", max_length=512, truncation=True)
-    outputs = model.generate(**inputs, max_new_tokens=150, temperature=0.1, do_sample=False)
+    outputs = model.generate(**inputs, max_new_tokens=150, do_sample=False)
     
     answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
     

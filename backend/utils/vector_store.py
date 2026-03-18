@@ -1,42 +1,85 @@
-import chromadb
+import os
+import uuid
+from dotenv import load_dotenv
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import Distance, VectorParams, PointStruct
 from sentence_transformers import SentenceTransformer
 
-print("Connecting to persistent ChromaDB Server...")
+load_dotenv()
 
-# 1. REMOVE PersistentClient and replace with HttpClient
-# We connect to localhost on port 8001 (where our Docker container is exposed)
-chroma_client = chromadb.HttpClient(host="localhost", port=8001)
+QDRANT_URL = os.getenv("QDRANT_URL")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 
-# 2. Get or create the collection on the remote server
-collection = chroma_client.get_or_create_collection(name="docans_collection")
+if not QDRANT_URL or not QDRANT_API_KEY:
+    raise ValueError("CRITICAL ERROR: QDRANT_URL or QDRANT_API_KEY is missing from your .env file.")
 
-# 3. Load the CPU-friendly embedding model
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2') 
+print("Connecting to Qdrant Cloud Cluster securely...")
+client = QdrantClient(
+    url=QDRANT_URL, 
+    api_key=QDRANT_API_KEY
+)
 
-print("Successfully connected to Vector Store!")
+collection_name = "docans_collection"
+
+# 2. Load the CPU-friendly embedding model
+embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+vector_size = 384  # Exact output dimension for all-MiniLM-L6-v2
+
+# 3. Create the remote collection if it doesn't exist
+if not client.collection_exists(collection_name):
+    client.create_collection(
+        collection_name=collection_name,
+        vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+    )
+print("Successfully connected to Qdrant Cloud!")
 
 async def store_chunks_in_db(filename: str, chunks: list[str]):
-    if not chunks: return
-        
-    # Clear previous documents from the DB so retrieval is isolated to the current file
-    existing_data = collection.get()
-    if existing_data and existing_data['ids']:
-        collection.delete(ids=existing_data['ids'])
+    if not chunks:
+        return
+
+    print(f"Uploading {len(chunks)} chunks to Qdrant Cloud...")
     
-    ids = [f"chunk_{i}" for i in range(len(chunks))]
-    metadatas = [{"filename": filename} for _ in chunks]
-    
-    # Generate embeddings
+    # Isolate context: Delete and recreate the remote collection to clear old document data
+    client.delete_collection(collection_name=collection_name)
+    client.create_collection(
+        collection_name=collection_name,
+        vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+    )
+
+    # Generate embeddings locally
     embeddings = embedding_model.encode(chunks).tolist()
-    
-    # Upsert data to the remote server
-    collection.upsert(ids=ids, embeddings=embeddings, metadatas=metadatas, documents=chunks)
+
+    # Package into Qdrant Points (Vectors + Text Payload)
+    points = [
+        PointStruct(
+            id=str(uuid.uuid4()),
+            vector=embedding,
+            payload={"filename": filename, "text": chunk}
+        )
+        for embedding, chunk in zip(embeddings, chunks)
+    ]
+
+    # Push to Qdrant Cloud
+    client.upsert(
+        collection_name=collection_name,
+        points=points
+    )
+    print("Cloud upload complete.")
 
 async def retrieve_relevant_chunks(query: str, n_results: int = 4) -> list[str]:
-    # Retrieve top 4 chunks from the remote server
-    query_embedding = embedding_model.encode([query]).tolist()
-    results = collection.query(query_embeddings=query_embedding, n_results=n_results)
-    
-    if not results['documents'] or not results['documents'][0]:
+    # Embed the search query locally
+    query_embedding = embedding_model.encode(query).tolist()
+
+    # Query the remote Qdrant Cloud cluster using the modern query_points API
+    search_result = client.query_points(
+        collection_name=collection_name,
+        query=query_embedding,  # Note: The parameter is now 'query', not 'query_vector'
+        limit=n_results
+    )
+
+    # query_points returns a QueryResponse object containing a list of 'points'
+    if not search_result.points:
         return []
-    return results['documents'][0]
+
+    # Extract the raw text chunks from the returned payload
+    return [hit.payload["text"] for hit in search_result.points]

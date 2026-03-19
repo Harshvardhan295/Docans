@@ -1,30 +1,68 @@
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+# backend/utils/qa_model.py
+import os
+import json
+from google import genai
+from google.genai import types
+from dotenv import load_dotenv
 
-model_name = "google/flan-t5-base"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+load_dotenv()
 
-async def answer_question(query: str, retrieved_chunks: list[str]) -> str:
+# Securely load the API key from .env
+GEMINI_API_KEY1 = os.getenv("GEMINI_API_KEY1")
+
+if not GEMINI_API_KEY1:
+    raise ValueError("CRITICAL ERROR: GEMINI_API_KEY1 is missing from your .env file.")
+
+# Create the Gemini Client (new SDK uses a client-based approach)
+client = genai.Client(api_key=GEMINI_API_KEY1)
+
+MODEL_ID = "gemini-2.5-flash-lite"
+
+async def answer_question(query: str, retrieved_chunks: list[str]) -> dict:
+    """
+    Sends the document context and user query to Gemini and returns a 
+    strictly structured JSON response.
+    """
     if not retrieved_chunks:
-        return "I'm sorry, but this information is not present in the uploaded document."
+        return {
+            "answer": "I'm sorry, but this information is not present in the uploaded document.",
+            "status": "no_context_found",
+            "confidence": 0.0
+        }
 
-    context = " ".join(retrieved_chunks)
+    # Prepare the document context for the prompt
+    context_text = "\n\n---\n\n".join(retrieved_chunks)
     
-    # 4. Strict Context-Driven Prompt
+    # System Instruction for grounded, structured output
     prompt = (
-        f"Answer using ONLY the context below. If the answer is not in the context, say 'I'm sorry, but this information is not present in the uploaded document.'\n\n"
-        f"Context:\n{context}\n\n"
-        f"Question:\n{query}\n\n"
-        "Answer:"
+        f"You are a professional document analysis expert. Base your answer ONLY on the provided context.\n"
+        f"If the answer is not explicitly in the context, state that clearly.\n\n"
+        f"CONTEXT:\n{context_text}\n\n"
+        f"USER QUESTION: {query}\n\n"
+        f"INSTRUCTION: Return a JSON object with the following keys:\n"
+        f"1. 'answer': A detailed, accurate response.\n"
+        f"2. 'status': Either 'success' or 'not_found'.\n"
+        f"3. 'confidence': A numerical score from 0.0 to 1.0 based on how well the context supports the answer."
     )
 
-    # Max length bounded to prevent CPU memory overflow
-    inputs = tokenizer(prompt, return_tensors="pt", max_length=512, truncation=True)
-    outputs = model.generate(**inputs, max_new_tokens=150, do_sample=False)
-    
-    answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    
-    if not answer.strip() or answer.strip() == "Answer:":
-        return "I'm sorry, but this information is not present in the uploaded document."
+    try:
+        # Generate content using the new client-based API
+        response = client.models.generate_content(
+            model=MODEL_ID,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.1,  # Low temperature for factual consistency
+            ),
+        )
         
-    return answer
+        # Parse the JSON string from Gemini into a Python dictionary
+        return json.loads(response.text)
+        
+    except Exception as e:
+        print(f"CRITICAL Gemini API Error: {e}")
+        return {
+            "answer": "An internal error occurred while generating the response.",
+            "status": "error",
+            "confidence": 0.0
+        }

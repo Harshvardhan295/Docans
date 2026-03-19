@@ -55,21 +55,29 @@ async def upload_document(file: UploadFile = File(...)):
 @app.post("/chat/")
 async def chat_endpoint(request: ChatRequest):
     try:
-        # 1. Retrieve chunks from Qdrant
+        # 1. Retrieve the top 4 most relevant document snippets from Qdrant
         relevant_chunks = await retrieve_relevant_chunks(request.query)
-        # 2. Generate answer with Flan-T5
-        answer = await answer_question(request.query, relevant_chunks)
-        # 3. Safely attempt to save to Supabase
+        
+        # 2. Generate the structured answer via Gemini API
+        # The 'answer' variable now holds a dictionary (structured format)
+        structured_data = await answer_question(request.query, relevant_chunks)
+        
+# 3. Save the interaction to Supabase history
         try:
-            from utils.db_manager import save_chat_interaction
-            await save_chat_interaction(request.session_id, request.query, answer)
+            await save_chat_interaction(
+                request.session_id, 
+                request.query, 
+                structured_data.get("answer", "")
+            )
         except Exception as db_error:
-            print(f"Skipping database save (DB might not be configured): {db_error}")
+            print(f"Skipping DB save: {db_error}")
             
-        return {"answer": answer}
+        # 🟢 THE FIX: Change the return statement to match what the frontend expects
+        return {"answer": structured_data.get("answer", "Sorry, no answer generated.")}
         
     except Exception as e:
         print(f"CRITICAL ERROR in /chat/: {e}")
+        # Also update the error return to match the frontend format
         return {"answer": "I'm sorry, an internal server error occurred while processing your request."}
 
 @app.get("/history/{session_id}")

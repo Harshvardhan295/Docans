@@ -61,14 +61,20 @@ async def upload_document(
 @app.post("/chat/")
 async def chat_endpoint(request: ChatRequest):
     try:
-        # 1. Retrieve the top 4 most relevant document snippets from Qdrant
-        relevant_chunks = await retrieve_relevant_chunks(request.session_id, request.query)
+        # 1. Look up the original filename from Supabase so we can find the correct Qdrant collection
+        summary_data = await get_summary_from_db(request.session_id)
+        if not summary_data or not summary_data.get("file_name"):
+            return {"answer": "No document found for this session. Please upload a file first."}
         
-        # 2. Generate the structured answer via Gemini API
-        # The 'answer' variable now holds a dictionary (structured format)
+        filename = summary_data["file_name"]
+        
+        # 2. Retrieve the top 4 most relevant document snippets from the filename-based Qdrant collection
+        relevant_chunks = await retrieve_relevant_chunks(request.session_id, request.query, filename)
+        
+        # 3. Generate the structured answer via Gemini API
         structured_data = await answer_question(request.query, relevant_chunks)
         
-# 3. Save the interaction to Supabase history
+# 4. Save the interaction to Supabase history
         try:
             await save_chat_interaction(
                 request.session_id, 
@@ -78,12 +84,10 @@ async def chat_endpoint(request: ChatRequest):
         except Exception as db_error:
             print(f"Skipping DB save: {db_error}")
             
-        # 🟢 THE FIX: Change the return statement to match what the frontend expects
         return {"answer": structured_data.get("answer", "Sorry, no answer generated.")}
         
     except Exception as e:
         print(f"CRITICAL ERROR in /chat/: {e}")
-        # Also update the error return to match the frontend format
         return {"answer": "I'm sorry, an internal server error occurred while processing your request."}
 
 @app.get("/history/{session_id}")

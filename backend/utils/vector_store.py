@@ -1,5 +1,6 @@
 # backend/utils/vector_store.py
 import os
+import re
 import uuid
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
@@ -26,15 +27,32 @@ vector_size = 384  # Exact output dimension for all-MiniLM-L6-v2
 
 print("Successfully connected to Qdrant Cloud!")
 
+
+def _sanitize_collection_name(filename: str) -> str:
+    """
+    Convert a raw filename into a valid Qdrant collection name.
+    Example: "My Report (2024).pdf" -> "docans_my_report_2024"
+    """
+    # Strip the file extension (.pdf, .pptx, etc.)
+    name = os.path.splitext(filename)[0]
+    # Lowercase everything
+    name = name.lower()
+    # Replace any non-alphanumeric character with an underscore
+    name = re.sub(r"[^a-z0-9]", "_", name)
+    # Collapse multiple underscores into one and strip leading/trailing
+    name = re.sub(r"_+", "_", name).strip("_")
+    return f"docans_{name}"
+
+
 async def store_chunks_in_db(session_id: str, filename: str, chunks: list[str]):
     if not chunks:
         return
     
-    # Create a unique collection name for this specific file/session
-    collection_name = f"docans_{session_id}"
+    # Derive collection name from the original uploaded filename
+    collection_name = _sanitize_collection_name(filename)
     print(f"Creating collection '{collection_name}' and uploading {len(chunks)} chunks...")
     
-    # If the user re-uploads a file to the same session, clear the old one first
+    # If the user re-uploads a file with the same name, clear the old one first
     if client.collection_exists(collection_name=collection_name):
         client.delete_collection(collection_name=collection_name)
         
@@ -62,15 +80,20 @@ async def store_chunks_in_db(session_id: str, filename: str, chunks: list[str]):
         collection_name=collection_name,
         points=points
     )
-    print(f"Cloud upload complete for session {session_id}.")
+    print(f"Cloud upload complete: collection='{collection_name}', session={session_id}")
 
-async def retrieve_relevant_chunks(session_id: str, query: str, n_results: int = 4) -> list[str]:
-    # Look for the exact collection associated with this chat
-    collection_name = f"docans_{session_id}"
+
+async def retrieve_relevant_chunks(session_id: str, query: str, filename: str, n_results: int = 4) -> list[str]:
+    """
+    Retrieve relevant chunks from the Qdrant collection named after the original file.
+    The filename is looked up from Supabase in main.py and passed in here.
+    """
+    # Derive collection name from the original filename
+    collection_name = _sanitize_collection_name(filename)
     
-    # Safety Check: Ensure the collection hasn't been deleted
+    # Safety Check: Ensure the collection exists
     if not client.collection_exists(collection_name=collection_name):
-        print(f"Warning: Qdrant collection {collection_name} not found.")
+        print(f"Warning: Qdrant collection '{collection_name}' not found.")
         return []
 
     # Embed the search query locally

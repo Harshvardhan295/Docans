@@ -3,7 +3,7 @@ import os
 # Force Hugging Face to use the H: drive for downloading massive models
 os.environ["HF_HOME"] = "H:/Docans/hf_cache"
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 import uvicorn
 import uuid
@@ -12,7 +12,7 @@ from utils.document_processor import process_file
 from utils.summarizer import generate_document_summary
 from utils.vector_store import store_chunks_in_db, retrieve_relevant_chunks
 from utils.qa_model import answer_question
-from utils.db_manager import save_chat_interaction, fetch_chat_history
+from utils.db_manager import save_chat_interaction, fetch_chat_history, save_summary_to_db, get_summary_from_db, get_chat_history_from_db, get_all_sessions_from_db
 
 app = FastAPI(title="Docans API")
 
@@ -29,7 +29,10 @@ class ChatRequest(BaseModel):
     query: str
 
 @app.post("/upload/")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    session_id: str = Form(...)  # Receive the session ID from frontend
+):
     if not file.filename.lower().endswith(('.pdf', '.pptx')):
         raise HTTPException(status_code=400, detail="Only .pdf and .pptx files are supported.")
     try:
@@ -39,6 +42,9 @@ async def upload_document(file: UploadFile = File(...)):
         
         await store_chunks_in_db(file.filename, chunks)
         master_summary = await generate_document_summary(chunks, file_name=file.filename)
+        
+        # Save the summary to Supabase, tied to this session
+        await save_summary_to_db(session_id, file.filename, master_summary)
         
         return {
             "message": "File processed, stored in database, and summarized successfully.",
@@ -92,6 +98,23 @@ async def get_history(session_id: str):
         return {"session_id": session_id, "history": history}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+@app.get("/session/{session_id}/summary")
+async def fetch_session_summary(session_id: str):
+    data = await get_summary_from_db(session_id)
+    if data:
+        return {"summary": data["summary_text"], "file_name": data["file_name"]}
+    return {"summary": None}
+
+@app.get("/session/{session_id}/history")
+async def fetch_session_history(session_id: str):
+    data = await get_chat_history_from_db(session_id)
+    return {"history": data}
+
+@app.get("/sessions/")
+async def fetch_all_sessions():
+    data = await get_all_sessions_from_db()
+    return {"sessions": data}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

@@ -1,3 +1,4 @@
+# backend/utils/vector_store.py
 import os
 import uuid
 from dotenv import load_dotenv
@@ -19,28 +20,25 @@ client = QdrantClient(
     api_key=QDRANT_API_KEY
 )
 
-collection_name = "docans_collection"
-
-# 2. Load the CPU-friendly embedding model
+# Load the CPU-friendly embedding model
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 vector_size = 384  # Exact output dimension for all-MiniLM-L6-v2
 
-# 3. Create the remote collection if it doesn't exist
-if not client.collection_exists(collection_name):
-    client.create_collection(
-        collection_name=collection_name,
-        vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
-    )
 print("Successfully connected to Qdrant Cloud!")
 
-async def store_chunks_in_db(filename: str, chunks: list[str]):
+async def store_chunks_in_db(session_id: str, filename: str, chunks: list[str]):
     if not chunks:
         return
-
-    print(f"Uploading {len(chunks)} chunks to Qdrant Cloud...")
     
-    # Isolate context: Delete and recreate the remote collection to clear old document data
-    client.delete_collection(collection_name=collection_name)
+    # Create a unique collection name for this specific file/session
+    collection_name = f"docans_{session_id}"
+    print(f"Creating collection '{collection_name}' and uploading {len(chunks)} chunks...")
+    
+    # If the user re-uploads a file to the same session, clear the old one first
+    if client.collection_exists(collection_name=collection_name):
+        client.delete_collection(collection_name=collection_name)
+        
+    # Create the new remote collection
     client.create_collection(
         collection_name=collection_name,
         vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
@@ -54,7 +52,7 @@ async def store_chunks_in_db(filename: str, chunks: list[str]):
         PointStruct(
             id=str(uuid.uuid4()),
             vector=embedding,
-            payload={"filename": filename, "text": chunk}
+            payload={"filename": filename, "text": chunk, "session_id": session_id}
         )
         for embedding, chunk in zip(embeddings, chunks)
     ]
@@ -64,22 +62,29 @@ async def store_chunks_in_db(filename: str, chunks: list[str]):
         collection_name=collection_name,
         points=points
     )
-    print("Cloud upload complete.")
+    print(f"Cloud upload complete for session {session_id}.")
 
-async def retrieve_relevant_chunks(query: str, n_results: int = 4) -> list[str]:
+async def retrieve_relevant_chunks(session_id: str, query: str, n_results: int = 4) -> list[str]:
+    # Look for the exact collection associated with this chat
+    collection_name = f"docans_{session_id}"
+    
+    # Safety Check: Ensure the collection hasn't been deleted
+    if not client.collection_exists(collection_name=collection_name):
+        print(f"Warning: Qdrant collection {collection_name} not found.")
+        return []
+
     # Embed the search query locally
     query_embedding = embedding_model.encode(query).tolist()
 
-    # Query the remote Qdrant Cloud cluster using the modern query_points API
+    # Query ONLY the remote collection for this specific file
     search_result = client.query_points(
         collection_name=collection_name,
-        query=query_embedding,  # Note: The parameter is now 'query', not 'query_vector'
+        query=query_embedding,  
         limit=n_results
     )
 
-    # query_points returns a QueryResponse object containing a list of 'points'
     if not search_result.points:
         return []
 
-    # Extract the raw text chunks from the returned payload
+    # Extract the raw text chunks
     return [hit.payload["text"] for hit in search_result.points]

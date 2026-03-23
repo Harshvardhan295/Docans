@@ -40,7 +40,7 @@ async def upload_document(
         processed_data = await process_file(file.filename, file_bytes)
         chunks = processed_data["chunks"]
         
-        await store_chunks_in_db(file.filename, chunks)
+        await store_chunks_in_db(session_id, file.filename, chunks)
         master_summary = await generate_document_summary(chunks, file_name=file.filename)
         
         # Save the summary to Supabase, tied to this session
@@ -62,7 +62,7 @@ async def upload_document(
 async def chat_endpoint(request: ChatRequest):
     try:
         # 1. Retrieve the top 4 most relevant document snippets from Qdrant
-        relevant_chunks = await retrieve_relevant_chunks(request.query)
+        relevant_chunks = await retrieve_relevant_chunks(request.session_id, request.query)
         
         # 2. Generate the structured answer via Gemini API
         # The 'answer' variable now holds a dictionary (structured format)

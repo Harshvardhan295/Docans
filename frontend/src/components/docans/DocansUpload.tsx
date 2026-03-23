@@ -29,6 +29,7 @@ export default function DocansUpload() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyList, setHistoryList] = useState<any[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isUploading = useRef(false);
 
   // 1. Recover existing summary when Session ID changes
   useEffect(() => {
@@ -36,6 +37,9 @@ export default function DocansUpload() {
       reset();
       return;
     }
+
+    // Skip fetching if we're in the middle of an upload (the session was just created)
+    if (isUploading.current) return;
     
     const fetchExistingSession = async () => {
       try {
@@ -45,9 +49,14 @@ export default function DocansUpload() {
           setFile({ name: data.file_name, size: 0, type: data.file_name.endsWith(".pdf") ? "pdf" : "pptx", pages: 0, chunks: 0 });
           setSummary(data.summary);
           setState("done");
+        } else {
+          // Session exists in localStorage but not on backend (stale) — clear it
+          setActiveSession(null);
         }
       } catch (err) {
         console.error("Failed to load summary");
+        // If backend is unreachable, also clear stale session so dropzone is usable
+        setActiveSession(null);
       }
     };
     fetchExistingSession();
@@ -77,6 +86,9 @@ export default function DocansUpload() {
       setState("error");
       return;
     }
+
+    // Mark upload as in-progress so the session-recovery useEffect doesn't interfere
+    isUploading.current = true;
 
     // Generate a BRAND NEW session ID for this upload
     const newSessionId = Math.random().toString(36).substring(2, 15);
@@ -120,6 +132,7 @@ export default function DocansUpload() {
           setSummary(realSummary);
           clearInterval(streamInterval);
           setState("done");
+          isUploading.current = false;
         } else {
           setSummary(realSummary.slice(0, idx));
         }
@@ -128,6 +141,7 @@ export default function DocansUpload() {
     } catch (error) {
       clearInterval(fakeProgress);
       setState("error");
+      isUploading.current = false;
     }
   }, []);
 

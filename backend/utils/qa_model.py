@@ -46,7 +46,7 @@ async def answer_question(query: str, retrieved_chunks: list[dict]) -> dict:
         "1. 'answer': A detailed, accurate response.\n"
         "2. 'status': Either 'success' or 'not_found'.\n"
         "3. 'confidence': A numerical score from 0.0 to 1.0 based on how well the context supports the answer.\n"
-        "4. 'sources': An array of source numbers that support the answer. Return [] if the answer is not found."
+        "4. 'sources': An array of strings representing the source numbers that support the answer (e.g., [\"1\", \"2\"]). Return [] if the answer is not found."
     )
 
     try:
@@ -59,13 +59,30 @@ async def answer_question(query: str, retrieved_chunks: list[dict]) -> dict:
             ),
         )
 
-        parsed = json.loads(response.text)
-        parsed_sources = parsed.get("sources") or []
+        # 1. Clean up potential markdown formatting from Gemini
+        raw_response = response.text.strip()
+        if raw_response.startswith("```json"):
+            raw_response = raw_response[7:-3].strip()
+        elif raw_response.startswith("```"):
+            raw_response = raw_response[3:-3].strip()
 
+        parsed = json.loads(raw_response)
+        
+        # 2. Normalize parsed sources to strings (Fixes the integer mismatch bug)
+        raw_sources = parsed.get("sources", [])
+        if not isinstance(raw_sources, list):
+            raw_sources = []
+        parsed_sources = [str(s).strip() for s in raw_sources]
+
+        # 3. Filter and Validate
         if parsed.get("status") != "success":
             parsed["sources"] = []
         else:
-            parsed["sources"] = [source for source in parsed_sources if source in unique_sources] or unique_sources
+            # Match against unique_sources retrieved from Qdrant
+            valid_sources = [s for s in parsed_sources if s in unique_sources]
+            
+            # Fallback: if Gemini fails to list them but we found a valid answer, attach the context sources
+            parsed["sources"] = valid_sources if valid_sources else unique_sources
 
         return parsed
 

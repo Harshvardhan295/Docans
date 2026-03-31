@@ -3,22 +3,25 @@ import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-# Load environment variables from the .env file
 load_dotenv()
 
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_ANON_KEY")
 
-# Initialize the Supabase client
 supabase: Client = create_client(url, key)
 
-async def save_chat_interaction(session_id: str, query: str, answer: str):
-    """Saves the user query and the AI's answer to Supabase."""
+# UPDATED: Added `sources` parameter to the function signature
+async def save_chat_interaction(session_id: str, query: str, answer: str, sources: list = None):
+    """Saves the user query, the AI's answer, and the sources to Supabase."""
+    if sources is None:
+        sources = []
+        
     try:
         data = {
             "session_id": session_id,
             "query": query,
-            "answer": answer
+            "answer": answer,
+            "sources": sources  # <-- Now inserting sources into the DB
         }
         # Insert the data into our table
         supabase.table("chat_history").insert(data).execute()

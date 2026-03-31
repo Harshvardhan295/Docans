@@ -67,10 +67,12 @@ async def chat_endpoint(request: ChatRequest):
         structured_data = await answer_question(request.query, relevant_chunks)
 
         try:
+            # Passes sources array into the updated DB Manager function
             await save_chat_interaction(
                 request.session_id,
                 request.query,
                 structured_data.get("answer", ""),
+                structured_data.get("sources", [])
             )
         except Exception as db_error:
             print(f"Skipping DB save: {db_error}")

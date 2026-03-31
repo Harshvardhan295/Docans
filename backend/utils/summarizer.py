@@ -3,13 +3,13 @@ import ollama
 
 print("Summarizer initialized (using local Ollama engine)...")
 
-
-async def generate_document_summary(chunks: list[str], file_name: str = "Document") -> str:
+async def generate_document_summary(chunks: list, file_name: str = "Document") -> str:
     if not chunks:
         return "No content to summarize."
 
     print(f"Generating structured summary for {file_name} via Ollama...")
 
+    # Correctly handles both old (str) and new (dict) chunk formats
     full_text = "\n\n".join(
         chunk["text"] if isinstance(chunk, dict) else chunk
         for chunk in chunks

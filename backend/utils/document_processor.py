@@ -4,52 +4,61 @@ import fitz  # PyMuPDF
 from pptx import Presentation
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# 1. CPU-Friendly Chunking
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=500,
     chunk_overlap=100,
     length_function=len,
 )
 
+
 def clean_text(text: str) -> str:
-    """Removes metadata that causes embeddings to hallucinate or miss context."""
-    text = re.sub(r'--- Page \d+ ---', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'--- Slide \d+ ---', '', text, flags=re.IGNORECASE)
-    # Replace multiple spaces/newlines with a single space
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"\s+", " ", text)
     return text.strip()
 
-def extract_text_from_pdf(file_bytes: bytes) -> str:
-    text = ""
-    with fitz.open(stream=file_bytes, filetype="pdf") as doc:
-        for page in doc:
-            text += page.get_text("text") + "\n"
-    return text
 
-def extract_text_from_pptx(file_bytes: bytes) -> str:
-    text = ""
+def extract_text_from_pdf(file_bytes: bytes) -> list[dict]:
+    sections = []
+    with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+        for index, page in enumerate(doc, start=1):
+            text = clean_text(page.get_text("text"))
+            if text:
+                sections.append({"source": str(index), "text": text})
+    return sections
+
+
+def extract_text_from_pptx(file_bytes: bytes) -> list[dict]:
+    sections = []
     presentation = Presentation(io.BytesIO(file_bytes))
-    for slide in presentation.slides:
+    for index, slide in enumerate(presentation.slides, start=1):
+        slide_text = []
         for shape in slide.shapes:
             if hasattr(shape, "text"):
-                text += shape.text + "\n"
-    return text
+                slide_text.append(shape.text)
+        text = clean_text("\n".join(slide_text))
+        if text:
+            sections.append({"source": str(index), "text": text})
+    return sections
+
 
 async def process_file(file_name: str, file_bytes: bytes) -> dict:
-    if file_name.lower().endswith('.pdf'):
-        raw_text = extract_text_from_pdf(file_bytes)
-    elif file_name.lower().endswith('.pptx'):
-        raw_text = extract_text_from_pptx(file_bytes)
+    if file_name.lower().endswith(".pdf"):
+        sections = extract_text_from_pdf(file_bytes)
+    elif file_name.lower().endswith(".pptx"):
+        sections = extract_text_from_pptx(file_bytes)
     else:
         raise ValueError("Unsupported format.")
 
-    # 2. Clean and Chunk
-    cleaned_text = clean_text(raw_text)
-    chunks = text_splitter.split_text(cleaned_text)
-    
+    chunks = []
+    total_characters = 0
+
+    for section in sections:
+        total_characters += len(section["text"])
+        for chunk in text_splitter.split_text(section["text"]):
+            chunks.append({"text": chunk, "source": section["source"]})
+
     return {
         "filename": file_name,
-        "total_characters": len(cleaned_text),
+        "total_characters": total_characters,
         "total_chunks": len(chunks),
-        "chunks": chunks
+        "chunks": chunks,
     }

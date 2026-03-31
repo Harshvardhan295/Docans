@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown";
 import MagneticButton from "../wiz/animations/MagneticButton";
 import SkeletonLoader from "../wiz/animations/SkeletonLoader";
 import TextReveal from "../wiz/animations/TextReveal";
-import { useSessionStore, setActiveSession } from "../../lib/sessionStore";
+import { useSessionStore, setActiveSession, setSummaryReady } from "../../lib/sessionStore";
 
 interface UploadedFile {
   name: string;
@@ -49,6 +49,7 @@ export default function DocansUpload() {
           setFile({ name: data.file_name, size: 0, type: data.file_name.endsWith(".pdf") ? "pdf" : "pptx", pages: 0, chunks: 0 });
           setSummary(data.summary);
           setState("done");
+          setSummaryReady(true);
         } else {
           // Session exists in localStorage but not on backend (stale) — clear it
           setActiveSession(null);
@@ -93,6 +94,7 @@ export default function DocansUpload() {
     // Generate a BRAND NEW session ID for this upload
     const newSessionId = Math.random().toString(36).substring(2, 15);
     setActiveSession(newSessionId);
+    setSummaryReady(false);
 
     setFile({ name: f.name, size: f.size, type: isPdf ? "pdf" : "pptx", pages: 0, chunks: 0 });
     setState("uploading");
@@ -133,6 +135,7 @@ export default function DocansUpload() {
           clearInterval(streamInterval);
           setState("done");
           isUploading.current = false;
+          setSummaryReady(true);
         } else {
           setSummary(realSummary.slice(0, idx));
         }
@@ -153,7 +156,8 @@ export default function DocansUpload() {
   };
 
   const reset = () => {
-    setActiveSession(null); // Clears session and prepares for new upload
+    setActiveSession(null);
+    setSummaryReady(false);
     setState("idle");
     setFile(null);
     setProgress(0);

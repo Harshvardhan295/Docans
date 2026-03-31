@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Menu, X, FileText } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import MagneticButton from "../wiz/animations/MagneticButton";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -17,8 +17,8 @@ const DocansNavbar = () => {
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="wiz-container flex h-16 items-center justify-between">
         <a href="#" className="flex items-center gap-2.5">
-          <div className="rounded-lg bg-primary p-1.5">
-            <FileText className="h-5 w-5 text-primary-foreground" />
+          <div className="flex items-center justify-center">
+            <img src="/Logo.png" alt="Docans Logo" className="h-8 w-8 object-contain" />
           </div>
           <span className="font-display text-xl font-bold text-foreground">Docans</span>
         </a>

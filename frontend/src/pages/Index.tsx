@@ -1,21 +1,18 @@
 import DocansNavbar from "@/components/docans/DocansNavbar";
 import DocansHero from "@/components/docans/DocansHero";
-import DocansFeatures from "@/components/docans/DocansFeatures";
-import DocansHowItWorks from "@/components/docans/DocansHowItWorks";
 import DocansUpload from "@/components/docans/DocansUpload";
 import DocansChat from "@/components/docans/DocansChat";
 import DocansFooter from "@/components/docans/DocansFooter";
-import ScrollReveal from "@/components/wiz/ScrollReveal";
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <DocansNavbar />
-      <DocansHero />
-      <ScrollReveal><DocansFeatures /></ScrollReveal>
-      <ScrollReveal><DocansHowItWorks /></ScrollReveal>
-      <DocansUpload />
-      <DocansChat />
+      <main className="flex-1">
+        <DocansHero />
+        <DocansUpload />
+        <DocansChat />
+      </main>
       <DocansFooter />
     </div>
   );

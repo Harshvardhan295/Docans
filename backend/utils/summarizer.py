@@ -33,6 +33,8 @@ async def generate_document_summary(chunks: list, file_name: str = "Document") -
                         "2. Key Challenges (use bullet points)\n"
                         "3. Strategy (step-by-step breakdown)\n"
                         "4. Key Insights\n"
+                        "Only the above section headings should be in bold text.\n"
+                        "After every section heading, there should be a new line.\n"
                         "Do not include any external information. Base it entirely on the text provided."
                     )
                 },

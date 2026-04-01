@@ -126,7 +126,7 @@ export default function DocansChat() {
           <div className="flex items-center justify-between border-b border-border bg-gradient-to-r from-card to-secondary/30 px-6 py-4">
             <div className="flex items-center gap-3">
               <Bot className="h-8 w-8 rounded-xl bg-primary p-1.5 text-primary-foreground" />
-              <div><p className="text-sm font-semibold">Docans RAG Chat</p></div>
+              <div><p className="text-sm font-semibold">Docans Query System</p></div>
             </div>
             <button onClick={() => setMessages([{ id: "w", role: "assistant", content: "Chat cleared!", timestamp: new Date() }])} className="rounded-xl p-2.5 hover:bg-secondary"><Trash2 className="h-4 w-4" /></button>
           </div>

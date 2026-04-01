@@ -1,8 +1,8 @@
-import DocansNavbar from "@/components/docans/DocansNavbar";
-import DocansHero from "@/components/docans/DocansHero";
-import DocansUpload from "@/components/docans/DocansUpload";
-import DocansChat from "@/components/docans/DocansChat";
-import DocansFooter from "@/components/docans/DocansFooter";
+import DocansNavbar from "@/components/DocansNavbar";
+import DocansHero from "@/components/DocansHero";
+import DocansUpload from "@/components/DocansUpload";
+import DocansChat from "@/components/DocansChat";
+import DocansFooter from "@/components/DocansFooter";
 
 const Index = () => {
   return (

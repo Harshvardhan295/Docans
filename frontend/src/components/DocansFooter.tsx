@@ -4,7 +4,7 @@ const DocansFooter = () => {
       <div className="wiz-container py-6 flex flex-col sm:flex-row justify-between items-center gap-4">
         
         <div className="flex items-center gap-2.5">
-          <img src="/Logo.png" alt="Docans Logo" className="h-5 w-5 object-contain grayscale opacity-70" />
+          <img src="/Logo.png" alt="Docans Logo" className="h-5 w-5 object-contain opacity-70" />
           <span className="font-display text-sm font-bold text-foreground/70 tracking-tight">Docans</span>
         </div>
         

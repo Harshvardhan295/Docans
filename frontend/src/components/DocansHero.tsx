@@ -2,9 +2,9 @@ import { ArrowRight } from "lucide-react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef, useState, useEffect } from "react";
 import Lottie from "lottie-react";
-import MagneticButton from "../wiz/animations/MagneticButton";
-import TextReveal from "../wiz/animations/TextReveal";
-import MeshGradient from "../wiz/animations/MeshGradient";
+import MagneticButton from "./wiz/animations/MagneticButton";
+import TextReveal from "./wiz/animations/TextReveal";
+import MeshGradient from "./wiz/animations/MeshGradient";
 
 
 const DocansHero = () => {

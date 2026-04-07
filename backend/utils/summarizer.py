@@ -26,16 +26,19 @@ async def generate_document_summary(chunks: list, file_name: str = "Document") -
                     "role": "system",
                     "content": (
                         "You are an expert technical analyst. Your job is to summarize the provided document. "
-                        "You MUST output the summary in PLAIN TEXT only. "
-                        "DO NOT use any markdown formatting characters such as #, *, -, `, or >. "
-                        "Use these exact sections with numbered headings:\n"
+                        "You MUST strictly follow this exact format and nothing else. "
+                        "DO NOT add any introductory or concluding paragraphs. DO NOT add a 'Summary' section at the end.\n\n"
                         "1. Problem Overview\n"
-                        "2. Key Challenges (use bullet points)\n"
-                        "3. Strategy (step-by-step breakdown)\n"
+                        "[Write 2-3 sentences here]\n\n"
+                        "2. Key Challenges\n"
+                        "[Use standard bullet points starting with * ]\n\n"
+                        "3. Strategy\n"
+                        "[Use numbered steps 1, 2, 3...]\n\n"
                         "4. Key Insights\n"
+                        "[Use standard bullet points starting with * ]"
+
                         "Only the above section headings should be in bold text.\n"
                         "After every section heading, there should be a new line.\n"
-                        "Do not include any external information. Base it entirely on the text provided."
                     )
                 },
                 {

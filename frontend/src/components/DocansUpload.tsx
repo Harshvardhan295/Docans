@@ -235,7 +235,7 @@ export default function DocansUpload() {
                   <button className="w-full flex items-center justify-between p-6 pb-0 text-left" onClick={() => setSummaryExpanded(!summaryExpanded)}>
                     <div className="flex items-center gap-2">
                       <div className="rounded-lg bg-primary/10 p-1.5"><Brain className="h-4 w-4 text-primary" /></div>
-                      <h3 className="font-display text-lg font-bold text-foreground">AI Summary</h3>
+                      <h3 className="font-display text-lg font-bold text-foreground">Summary</h3>
                     </div>
                     <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${summaryExpanded ? "rotate-180" : ""}`} />
                   </button>

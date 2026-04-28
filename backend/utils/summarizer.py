@@ -37,7 +37,7 @@ async def generate_document_summary(chunks: list, file_name: str = "Document") -
                         "4. Key Insights\n"
                         "[Use standard bullet points starting with * ]"
 
-                        "Only the above section headings should be in bold text.\n"
+                        "Only the above section headings should be in bold text.Other than this no other text should be in bold.\n"
                         "After every section heading, there should be a new line.\n"
                     )
                 },

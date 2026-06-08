@@ -41,15 +41,15 @@
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│              Frontend (React + Vite + TS)             │
-│  Hero → Upload → Chat (session managed via pub-sub)   │
+│              Frontend (React + Vite + TS)            │
+│  Hero → Upload → Chat (session managed via pub-sub)  │
 └──────────────────┬───────────────────────────────────┘
                    │ REST API
                    ▼
 ┌──────────────────────────────────────────────────────┐
-│               Backend (FastAPI + Uvicorn)             │
+│               Backend (FastAPI + Uvicorn)            │
 │                                                      │
-│  Document Processor ──► Summarizer (Ollama)           │
+│  Document Processor ──► Summarizer (Ollama)          │
 │  (PyMuPDF / pptx)       qwen2.5:1.5b                 │
 │                                                      │
 │  Vector Store (Qdrant) ──► QA Model (Gemini API)     │
@@ -143,11 +143,3 @@ GEMINI_API_KEY1=your-key
 ```bash
 cd backend && python evaluate_summary.py
 ```
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE) for details.
-
-<p align="center">Built with ❤️ using FastAPI, React, Ollama, Gemini, Qdrant & Supabase</p>

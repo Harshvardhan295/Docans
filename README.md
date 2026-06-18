@@ -27,7 +27,7 @@
 ## Features
 
 - **📄 Smart Upload** — Drag-and-drop PDF/PPTX with real-time progress
-- **🧠 AI Summarization** — Structured summaries via local Ollama LLM (Qwen 2.5)
+- **🧠 AI Summarization** — Structured summaries via NVIDIA NIM API (Qwen 3.5)
 - **🔍 RAG Pipeline** — Chunks embedded with `all-MiniLM-L6-v2` and stored in Qdrant Cloud
 - **💬 Contextual Q&A** — Gemini 2.5 Flash Lite answers grounded in document context
 - **🛡️ Guardrails** — Out-of-scope questions are gracefully handled
@@ -49,8 +49,8 @@
 ┌──────────────────────────────────────────────────────┐
 │               Backend (FastAPI + Uvicorn)            │
 │                                                      │
-│  Document Processor ──► Summarizer (Ollama)          │
-│  (PyMuPDF / pptx)       qwen2.5:1.5b                 │
+│  Document Processor ──► Summarizer (NVIDIA NIM)       │
+│  (PyMuPDF / pptx)       qwen3.5-122b-a10b             │
 │                                                      │
 │  Vector Store (Qdrant) ──► QA Model (Gemini API)     │
 │  all-MiniLM-L6-v2         gemini-2.5-flash-lite      │
@@ -59,7 +59,7 @@
 └──────────────────────────────────────────────────────┘
 ```
 
-**Flow:** Upload → extract text → chunk (500 chars) → embed & store in Qdrant → summarize via Ollama → user asks question → retrieve top-4 chunks → Gemini generates answer with sources → persist to Supabase.
+**Flow:** Upload → extract text → chunk (500 chars) → embed & store in Qdrant → summarize via NVIDIA NIM → user asks question → retrieve top-4 chunks → Gemini generates answer with sources → persist to Supabase.
 
 ---
 
@@ -69,7 +69,7 @@
 |---|---|
 | **Frontend** | React 18, TypeScript, Vite 5, Tailwind CSS 3, Framer Motion, Lottie, React Markdown, Lucide Icons |
 | **Backend** | FastAPI, PyMuPDF, python-pptx, LangChain Text Splitters, Sentence Transformers |
-| **AI/ML** | Ollama (qwen2.5:1.5b) for summarization, Google Gemini API for Q&A |
+| **AI/ML** | NVIDIA NIM (qwen3.5-122b-a10b) for summarization, Google Gemini API for Q&A |
 | **Data** | Qdrant Cloud (vector DB), Supabase (Postgres for persistence) |
 
 ---
@@ -78,7 +78,7 @@
 
 ### Prerequisites
 
-- **Node.js** ≥ 18 &nbsp;|&nbsp; **Python** ≥ 3.11 &nbsp;|&nbsp; **Ollama** (running locally)
+- **Node.js** ≥ 18 &nbsp;|&nbsp; **Python** ≥ 3.11
 - Accounts: [Qdrant Cloud](https://cloud.qdrant.io) · [Supabase](https://supabase.com) · [Google AI Studio](https://aistudio.google.com)
 
 ### Backend
@@ -88,8 +88,7 @@ cd backend
 python -m venv venv && venv\Scripts\activate   # Windows
 pip install -r requirements.txt
 
-# Pull the Ollama model (one-time), then keep `ollama serve` running
-ollama pull qwen2.5:1.5b
+# Ensure NVIDIA_API_KEY is set in your .env file
 
 python main.py   # → http://localhost:8000
 ```
@@ -114,6 +113,7 @@ SUPABASE_ANON_KEY=your-key
 QDRANT_URL=https://your-cluster.cloud.qdrant.io:6333
 QDRANT_API_KEY=your-key
 GEMINI_API_KEY1=your-key
+NVIDIA_API_KEY=your-key
 ```
 
 ---

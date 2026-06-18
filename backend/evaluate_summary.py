@@ -38,7 +38,7 @@ Curriculum supports application of knowledge in real-world scenarios
 Industry collaboration enhances practical exposure and innovation
     """
 
-    # 2. The summary your Ollama model actually generated
+    # 2. The summary your NVIDIA NIM model actually generated
     generated_summary = """
     1. Problem Overview
 The document outlines the Department of Information Technology (AIML) at a university, focusing on its vision and mission to enhance education environments by developing graduates with strong academic and technical backgrounds in computer science. The department aims to foster excellence across various domains such as workforce, higher studies or lifelong learning through industry partnerships.

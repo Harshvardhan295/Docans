@@ -1,26 +1,34 @@
 # backend/utils/summarizer.py
-import ollama
+import os
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
-print("Summarizer initialized (using local Ollama engine)...")
+load_dotenv()
+
+nvidia_client = AsyncOpenAI(
+    base_url="https://integrate.api.nvidia.com/v1",
+    api_key=os.environ["NVIDIA_API_KEY"]
+)
+
+print("Summarizer initialized (using NVIDIA NIM engine)...")
 
 async def generate_document_summary(chunks: list, file_name: str = "Document") -> str:
     if not chunks:
         return "No content to summarize."
 
-    print(f"Generating structured summary for {file_name} via Ollama...")
+    print(f"Generating structured summary for {file_name} via NVIDIA NIM...")
 
     # Correctly handles both old (str) and new (dict) chunk formats
     full_text = "\n\n".join(
         chunk["text"] if isinstance(chunk, dict) else chunk
         for chunk in chunks
     )
-    context_text = full_text[:10000]
+    # No truncation — NIM's Qwen handles large contexts
+    context_text = full_text
 
     try:
-        client = ollama.AsyncClient(host="http://localhost:11434")
-
-        response = await client.chat(
-            model="qwen2.5:1.5b",
+        response = await nvidia_client.chat.completions.create(
+            model="qwen/qwen3.5-122b-a10b",
             messages=[
                 {
                     "role": "system",
@@ -36,7 +44,6 @@ async def generate_document_summary(chunks: list, file_name: str = "Document") -
                         "[Use numbered steps 1, 2, 3...]\n\n"
                         "4. Key Insights\n"
                         "[Use standard bullet points starting with * ]"
-
                         "Only the above section headings should be in bold text.Other than this no other text should be in bold.\n"
                         "After every section heading, there should be a new line.\n"
                     )
@@ -46,13 +53,11 @@ async def generate_document_summary(chunks: list, file_name: str = "Document") -
                     "content": f"Here is the document text:\n\n{context_text}"
                 }
             ],
-            options={
-                "temperature": 0.3,
-                "num_predict": 600
-            }
+            max_tokens=1024,
+            temperature=0.3
         )
 
-        summary_text = response["message"]["content"]
+        summary_text = response.choices[0].message.content
 
         return (
             f"Document Analysis: {file_name}\n\n"
@@ -61,5 +66,5 @@ async def generate_document_summary(chunks: list, file_name: str = "Document") -
         )
 
     except Exception as e:
-        print(f"CRITICAL OLLAMA ERROR: {e}")
-        return "Could not connect to Ollama. Please ensure the Ollama app is running on your computer."
+        print(f"CRITICAL NVIDIA NIM ERROR: {e}")
+        return "Could not connect to NVIDIA NIM API. Please check your API key and network connection."

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { History, X, FileText, FileSpreadsheet, ChevronRight } from "lucide-react";
 import MagneticButton from "./wiz/animations/MagneticButton";
 import { useSessionStore, setActiveSession } from "../lib/sessionStore";
-
+import { apiUrl } from "../lib/api";
 const DocansNavbar = () => {
   const { sessionId } = useSessionStore();
   const [showHistory, setShowHistory] = useState(false);
@@ -15,7 +15,7 @@ const DocansNavbar = () => {
 
   const fetchHistory = async () => {
     try {
-      const res = await fetch(`http://localhost:8000/sessions/`);
+      const res = await fetch(apiUrl("/sessions/"));
       const data = await res.json();
       setHistoryList(data.sessions);
     } catch (err) {
@@ -108,3 +108,7 @@ const DocansNavbar = () => {
 };
 
 export default DocansNavbar;
+
+
+
+

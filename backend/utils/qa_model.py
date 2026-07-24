@@ -13,7 +13,7 @@ if not GEMINI_API_KEY1:
     raise ValueError("CRITICAL ERROR: GEMINI_API_KEY1 is missing from your .env file.")
 
 client = genai.Client(api_key=GEMINI_API_KEY1)
-MODEL_ID = "gemini-2.5-flash-lite"
+MODEL_ID = "gemini-3.1-flash-lite"
 
 
 async def answer_question(query: str, retrieved_chunks: list[dict]) -> dict:

@@ -14,7 +14,7 @@ import {
 import ReactMarkdown from "react-markdown";
 import TextReveal from "./wiz/animations/TextReveal";
 import { useSessionStore } from "../lib/sessionStore";
-
+import { apiUrl } from "../lib/api";
 interface Message {
   id: string;
   role: "user" | "assistant" | "guardrail";
@@ -188,9 +188,7 @@ export default function DocansChat() {
 
     const loadHistory = async () => {
       try {
-        const res = await fetch(
-          `http://localhost:8000/session/${sessionId}/history`
-        );
+        const res = await fetch(apiUrl(`/session/${sessionId}/history`));
         const data = await res.json();
 
         const initialMsg: Message = {
@@ -280,7 +278,7 @@ export default function DocansChat() {
     setIsTyping(true);
 
     try {
-      const response = await fetch("http://localhost:8000/chat/", {
+      const response = await fetch(apiUrl("/chat/"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, query: userQuery }),
@@ -468,3 +466,9 @@ export default function DocansChat() {
     </motion.section>
   );
 }
+
+
+
+
+
+

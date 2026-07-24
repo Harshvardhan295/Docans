@@ -1,4 +1,3 @@
-// frontend/src/components/docans/DocansUpload.tsx
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, FileText, FileSpreadsheet, X, CheckCircle, AlertCircle, Loader2, Brain, ChevronDown, Sparkles, Plus } from "lucide-react";
@@ -7,7 +6,7 @@ import MagneticButton from "./wiz/animations/MagneticButton";
 import SkeletonLoader from "./wiz/animations/SkeletonLoader";
 import TextReveal from "./wiz/animations/TextReveal";
 import { useSessionStore, setActiveSession, setSummaryReady } from "../lib/sessionStore";
-
+import { apiUrl } from "../lib/api";
 interface UploadedFile {
   name: string;
   size: number;
@@ -41,7 +40,7 @@ export default function DocansUpload() {
 
     const fetchExistingSession = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/session/${sessionId}/summary`);
+        const res = await fetch(apiUrl(`/session/${sessionId}/summary`));
         const data = await res.json();
         if (data.summary) {
           setFile({ name: data.file_name, size: 0, type: data.file_name.endsWith(".pdf") ? "pdf" : "pptx", pages: 0, chunks: 0 });
@@ -94,7 +93,7 @@ export default function DocansUpload() {
 
     try {
       setTimeout(() => setState("processing"), 1500);
-      const response = await fetch("http://localhost:8000/upload/", {
+      const response = await fetch(apiUrl("/upload/"), {
         method: "POST",
         body: formData,
       });
@@ -271,3 +270,7 @@ export default function DocansUpload() {
     </section>
   );
 }
+
+
+
+

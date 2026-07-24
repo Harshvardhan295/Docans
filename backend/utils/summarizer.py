@@ -5,9 +5,16 @@ from openai import AsyncOpenAI
 
 load_dotenv()
 
+NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "nvidia/nemotron-3-super-120b-a12b")
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
+
+if not NVIDIA_API_KEY:
+    raise ValueError("CRITICAL ERROR: NVIDIA_API_KEY is missing from your .env file.")
+
 nvidia_client = AsyncOpenAI(
-    base_url="https://integrate.api.nvidia.com/v1",
-    api_key=os.environ["NVIDIA_API_KEY"]
+    base_url=NVIDIA_BASE_URL,
+    api_key=NVIDIA_API_KEY
 )
 
 print("Summarizer initialized (using NVIDIA NIM engine)...")
@@ -28,7 +35,7 @@ async def generate_document_summary(chunks: list, file_name: str = "Document") -
 
     try:
         response = await nvidia_client.chat.completions.create(
-            model="qwen/qwen3.5-122b-a10b",
+            model=NVIDIA_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -54,7 +61,9 @@ async def generate_document_summary(chunks: list, file_name: str = "Document") -
                 }
             ],
             max_tokens=1024,
-            temperature=0.3
+            temperature=1.0,
+            top_p=0.95,
+            extra_body={"chat_template_kwargs": {"enable_thinking": False}}
         )
 
         summary_text = response.choices[0].message.content

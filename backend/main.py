@@ -1,6 +1,5 @@
-# main.py
 import os
-os.environ["HF_HOME"] = "H:/Docans/hf_cache"
+from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
@@ -12,20 +11,38 @@ from utils.vector_store import store_chunks_in_db, retrieve_relevant_chunks
 from utils.qa_model import answer_question
 from utils.db_manager import save_chat_interaction, fetch_chat_history, save_summary_to_db, get_summary_from_db, get_chat_history_from_db, get_all_sessions_from_db
 
+hf_cache_dir = Path(os.getenv("HF_HOME", Path(__file__).resolve().parent / "hf_cache"))
+hf_cache_dir.mkdir(parents=True, exist_ok=True)
+os.environ["HF_HOME"] = str(hf_cache_dir)
+
 app = FastAPI(title="Docans API")
+
+cors_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://localhost:8080,http://localhost:8081",
+    ).split(",")
+    if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
 class ChatRequest(BaseModel):
     session_id: str
     query: str
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 
 @app.post("/upload/")
